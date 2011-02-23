@@ -31,6 +31,7 @@
 #include <linux/ext3_fs.h>
 #include <linux/ext3_jbd.h>
 #include <linux/fcntl.h>
+#include <linux/security.h>
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/quotaops.h>
@@ -40,6 +41,8 @@
 #include "namei.h"
 #include "xattr.h"
 #include "acl.h"
+
+#include <rsbac/hooks.h>
 
 /*
  * define how far ahead to read directories while searching them.
@@ -2144,6 +2147,19 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 
 	inode = dentry->d_inode;
 
+#ifdef CONFIG_RSBAC_SECDEL
+	if(inode->i_nlink == 1) {
+		ext3_journal_stop(handle);
+		rsbac_sec_del(dentry, TRUE);
+		handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS(dir->i_sb));
+		if (IS_ERR(handle))
+			return PTR_ERR(handle);
+
+		if (IS_DIRSYNC(dir))
+			handle->h_sync = 1;
+	}
+#endif
+
 	retval = -EIO;
 	if (le32_to_cpu(de->inode) != inode->i_ino)
 		goto end_unlink;
@@ -2157,6 +2173,7 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 	retval = ext3_delete_entry(handle, dir, de, bh);
 	if (retval)
 		goto end_unlink;
+
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME_SEC;
 	ext3_update_dx_flag(dir);
 	ext3_mark_inode_dirty(handle, dir);
@@ -2353,6 +2370,22 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 		if (retval)
 			goto end_rename;
 	} else {
+
+#ifdef CONFIG_RSBAC_SECDEL
+	if (new_inode->i_nlink == 1) {
+			ext3_journal_stop(handle);
+			rsbac_sec_del(new_dentry, TRUE);
+			handle = ext3_journal_start(old_dir, 2 *
+					EXT3_DATA_TRANS_BLOCKS(old_dir->i_sb) +
+					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 2);
+			if (IS_ERR(handle))
+				return PTR_ERR(handle);
+
+			if (IS_DIRSYNC(old_dir) || IS_DIRSYNC(new_dir))
+				handle->h_sync = 1;
+	}
+#endif
+
 		BUFFER_TRACE(new_bh, "get write access");
 		ext3_journal_get_write_access(handle, new_bh);
 		new_de->inode = cpu_to_le32(old_inode->i_ino);

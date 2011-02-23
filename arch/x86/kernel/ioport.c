@@ -16,6 +16,8 @@
 #include <linux/syscalls.h>
 #include <asm/syscalls.h>
 
+#include <rsbac/hooks.h>
+
 /* Set EXTENT bits starting at BASE in BITMAP to value TURN_ON. */
 static void set_bitmap(unsigned long *bitmap, unsigned int base,
 		       unsigned int extent, int new_value)
@@ -39,10 +41,30 @@ asmlinkage long sys_ioperm(unsigned long from, unsigned long num, int turn_on)
 	struct tss_struct *tss;
 	unsigned int i, max_long, bytes, bytes_updated;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t       rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	if ((from + num <= from) || (from + num > IO_BITMAP_BITS))
 		return -EINVAL;
 	if (turn_on && !capable(CAP_SYS_RAWIO))
 		return -EPERM;
+
+#ifdef CONFIG_RSBAC
+	rsbac_pr_debug(aef, "calling ADF\n");
+	rsbac_target_id.scd = ST_ioports;
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_PERMISSIONS_DATA,
+				task_pid(current),
+				T_SCD,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+#endif
 
 	/*
 	 * If it's the first ioperm() call in this thread's lifetime, set the
@@ -108,6 +130,11 @@ long sys_iopl(unsigned int level, struct pt_regs *regs)
 	unsigned int old = (regs->flags >> 12) & 3;
 	struct thread_struct *t = &current->thread;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t       rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	if (level > 3)
 		return -EINVAL;
 	/* Trying to gain more privileges? */
@@ -115,6 +142,22 @@ long sys_iopl(unsigned int level, struct pt_regs *regs)
 		if (!capable(CAP_SYS_RAWIO))
 			return -EPERM;
 	}
+
+#ifdef CONFIG_RSBAC
+	rsbac_pr_debug(aef, "calling ADF\n");
+	rsbac_target_id.scd = ST_ioports;
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_PERMISSIONS_DATA,
+				task_pid(current),
+				T_SCD,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+#endif
+
 	regs->flags = (regs->flags & ~X86_EFLAGS_IOPL) | (level << 12);
 	t->iopl = level << 12;
 	set_iopl_mask(t->iopl);

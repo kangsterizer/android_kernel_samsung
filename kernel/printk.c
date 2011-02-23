@@ -40,6 +40,8 @@
 
 #include <asm/uaccess.h>
 
+#include <rsbac/hooks.h>
+
 /*
  * for_each_console() allows you to iterate on each console
  */
@@ -332,9 +334,54 @@ int do_syslog(int type, char __user *buf, int len, bool from_file)
 	char c;
 	int error = 0;
 
+#ifdef CONFIG_RSBAC_SYSLOG
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	error = security_syslog(type, from_file);
 	if (error)
 		return error;
+
+#ifdef CONFIG_RSBAC_SYSLOG
+	rsbac_pr_debug(aef, "[sys_syslog()]: calling ADF\n");
+	rsbac_target_id.scd = ST_syslog;
+	rsbac_attribute_value.dummy = 0;
+	switch(type) {
+		case 2:
+		case 3:
+			if (!rsbac_adf_request(R_GET_STATUS_DATA,
+						task_pid(current),
+						T_SCD,
+						rsbac_target_id,
+						A_none,
+						rsbac_attribute_value))
+			{
+				error = -EPERM;
+				goto out;
+			}
+			break;
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+		case 8:
+			if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+						task_pid(current),
+						T_SCD,
+						rsbac_target_id,
+						A_none,
+						rsbac_attribute_value))
+			{
+				error = -EPERM;
+				goto out;
+			}
+			break;
+
+		default:
+			break;
+	}
+#endif
 
 	switch (type) {
 	case SYSLOG_ACTION_CLOSE:	/* Close log */

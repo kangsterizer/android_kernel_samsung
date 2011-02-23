@@ -49,6 +49,10 @@
 # include <asm/perfmon.h>
 #endif
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 #include "sigframe.h"
 
 void (*ia64_mark_idle)(int);
@@ -659,6 +663,7 @@ kernel_thread (int (*fn)(void *), void *arg, unsigned long flags)
 		struct pt_regs pt;
 	} regs;
 
+
 	memset(&regs, 0, sizeof(regs));
 	regs.pt.cr_iip = helper_fptr[0];	/* set entry point (IP) */
 	regs.pt.r1 = helper_fptr[1];		/* set GP */
@@ -670,7 +675,11 @@ kernel_thread (int (*fn)(void *), void *arg, unsigned long flags)
 	regs.sw.ar_fpsr = regs.pt.ar_fpsr = ia64_getreg(_IA64_REG_AR_FPSR);
 	regs.sw.ar_bspstore = (unsigned long) current + IA64_RBS_OFFSET;
 	regs.sw.pr = (1 << PRED_KERNEL_STACK);
+#ifdef CONFIG_RSBAC
+	return do_fork(flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD, 0, &regs.pt, 0, NULL, NULL);
+#else
 	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0, &regs.pt, 0, NULL, NULL);
+#endif
 }
 EXPORT_SYMBOL(kernel_thread);
 

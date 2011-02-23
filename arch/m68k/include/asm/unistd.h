@@ -340,10 +340,17 @@
 #define __NR_set_thread_area	334
 #define __NR_atomic_cmpxchg_32	335
 #define __NR_atomic_barrier	336
+#ifdef CONFIG_RSBAC
+#define __NR_rsbac              337
+#endif
 
 #ifdef __KERNEL__
 
+#ifdef CONFIG_RSBAC
 #define NR_syscalls		337
+#else
+#define NR_syscalls		336
+#endif
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR

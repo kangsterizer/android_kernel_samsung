@@ -313,10 +313,18 @@
 #define __NR_rt_tgsigqueueinfo		1321
 #define __NR_recvmmsg			1322
 
+#ifdef CONFIG_RSBAC
+#define __NR_rsbac                      1323
+#endif
+
+
 #ifdef __KERNEL__
 
-
+#ifdef CONFIG_RSBAC
+#define NR_syscalls			300
+#else
 #define NR_syscalls			299 /* length of syscall table */
+#endif
 
 /*
  * The following defines stop scripts/checksyscalls.sh from complaining about

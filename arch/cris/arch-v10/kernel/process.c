@@ -17,6 +17,10 @@
 #include <arch/svinto.h>
 #include <linux/init.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 #ifdef CONFIG_ETRAX_GPIO
 void etrax_gpio_wake_up_check(void); /* drivers/gpio.c */
 #endif
@@ -102,7 +106,11 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	regs.dccr = 1 << I_DCCR_BITNR;
 
 	/* Ok, create the new process.. */
-        return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0, &regs, 0, NULL, NULL);
+#ifdef CONFIG_RSBAC
+	return do_fork(flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD, 0, &regs, 0, NULL, NULL);
+#else
+	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0, &regs, 0, NULL, NULL);
+#endif
 }
 
 /* setup the child's kernel stack with a pt_regs and switch_stack on it.

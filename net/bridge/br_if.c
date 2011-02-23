@@ -23,6 +23,8 @@
 #include <linux/slab.h>
 #include <net/sock.h>
 
+#include <rsbac/hooks.h>
+
 #include "br_private.h"
 
 /*
@@ -390,6 +392,11 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	struct net_bridge_port *p;
 	int err = 0;
 
+#ifdef CONFIG_RSBAC_NET
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	/* Don't allow bridging non-ethernet like devices */
 	if ((dev->flags & IFF_LOOPBACK) ||
 	    dev->type != ARPHRD_ETHER || dev->addr_len != ETH_ALEN)
@@ -402,6 +409,34 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	/* Device is already being bridged */
 	if (dev->br_port != NULL)
 		return -EBUSY;
+
+#ifdef CONFIG_RSBAC_NET_DEV
+	rsbac_pr_debug(aef, "calling ADF\n");
+	strncpy(rsbac_target_id.netdev, dev->name, RSBAC_IFNAMSIZ);
+	rsbac_target_id.netdev[RSBAC_IFNAMSIZ] = 0;
+#ifndef CONFIG_RSBAC_NET_DEV_VIRT
+	{
+		char * p = rsbac_target_id.netdev;
+		while (*p) {
+			if (*p == ':') {
+				*p=' ';
+				break;
+			}
+			p++;
+		}
+	}
+#endif
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+			task_pid(current),
+			T_NETDEV,
+			rsbac_target_id,
+			A_none,
+			rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+#endif
 
 	/* No bridging devices that dislike that (e.g. wireless) */
 	if (dev->priv_flags & IFF_DONT_BRIDGE)
@@ -469,8 +504,43 @@ int br_del_if(struct net_bridge *br, struct net_device *dev)
 {
 	struct net_bridge_port *p = dev->br_port;
 
+#ifdef CONFIG_RSBAC_NET
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	if (!p || p->br != br)
 		return -EINVAL;
+
+#ifdef CONFIG_RSBAC_NET_DEV
+	rsbac_pr_debug(aef, "calling ADF\n");
+	strncpy(rsbac_target_id.netdev, dev->name, RSBAC_IFNAMSIZ);
+	rsbac_target_id.netdev[RSBAC_IFNAMSIZ] = 0;
+#ifndef CONFIG_RSBAC_NET_DEV_VIRT
+	{
+		char * p = rsbac_target_id.netdev;
+		while (*p)
+		{
+			if (*p == ':')
+			{
+				*p=' ';
+				break;
+			}
+			p++;
+		}
+	}
+#endif
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+				task_pid(current),
+				T_NETDEV,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+#endif
 
 	del_nbp(p);
 

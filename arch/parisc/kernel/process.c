@@ -57,6 +57,10 @@
 #include <asm/unwind.h>
 #include <asm/sections.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 /*
  * The idle thread. There's no useful work to be
  * done, so just try to conserve power and have a
@@ -170,13 +174,17 @@ EXPORT_SYMBOL(pm_power_off);
 extern pid_t __kernel_thread(int (*fn)(void *), void *arg, unsigned long flags);
 pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
-
 	/*
 	 * FIXME: Once we are sure we don't need any debug here,
 	 *	  kernel_thread can become a #define.
 	 */
 
+	/* Ok, create the new process.. */
+#ifdef CONFIG_RSBAC
+	return __kernel_thread(fn, arg, flags | CLONE_KTHREAD);
+#else
 	return __kernel_thread(fn, arg, flags);
+#endif
 }
 EXPORT_SYMBOL(kernel_thread);
 

@@ -18,6 +18,10 @@
 #include <linux/ctype.h>
 #include <linux/sched.h>	/* current */
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 #include "capifs.h"
 
 MODULE_DESCRIPTION("CAPI4Linux: /dev/capi/ filesystem");
@@ -224,7 +228,14 @@ void capifs_free_ncci(struct dentry *dentry)
 
 static int __init capifs_init(void)
 {
-	return register_filesystem(&capifs_fs_type);
+	int err;
+
+	err = register_filesystem(&capifs_fs_type);
+#ifdef CONFIG_RSBAC
+	if (!err)
+		rsbac_mount(capifs_mnt);
+#endif
+	return err;
 }
 
 static void __exit capifs_exit(void)

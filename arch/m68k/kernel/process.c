@@ -34,6 +34,10 @@
 #include <asm/setup.h>
 #include <asm/pgtable.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 /*
  * Initial task/thread structure. Make this a per-architecture thing,
  * because different architectures tend to have different
@@ -153,7 +157,11 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 
 	{
 	register long retval __asm__ ("d0");
+#ifdef CONFIG_RSBAC
+	register long clone_arg __asm__ ("d1") = flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD;
+#else
 	register long clone_arg __asm__ ("d1") = flags | CLONE_VM | CLONE_UNTRACED;
+#endif
 
 	retval = __NR_clone;
 	__asm__ __volatile__
@@ -179,6 +187,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	}
 
 	set_fs (fs);
+
 	return pid;
 }
 EXPORT_SYMBOL(kernel_thread);

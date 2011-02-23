@@ -15,6 +15,7 @@
 #include <net/net_namespace.h>
 #include <net/sock.h>
 #include <net/fib_rules.h>
+#include <rsbac/hooks.h>
 
 int fib_default_rule_add(struct fib_rules_ops *ops,
 			 u32 pref, u32 table, u32 flags)
@@ -269,6 +270,10 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	struct fib_rule *rule, *r, *last = NULL;
 	struct nlattr *tb[FRA_MAX+1];
 	int err = -EINVAL, unresolved = 0;
+#ifdef CONFIG_RSBAC_NET
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
 
 	if (nlh->nlmsg_len < nlmsg_msg_size(sizeof(*frh)))
 		goto errout;
@@ -286,6 +291,25 @@ static int fib_nl_newrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	err = validate_rulemsg(frh, tb, ops);
 	if (err < 0)
 		goto errout;
+
+#ifdef CONFIG_RSBAC_NET
+#ifdef CONFIG_RSBAC_DEBUG
+	if (rsbac_debug_aef)
+		rsbac_printk(KERN_DEBUG "fib_nl_newrule(): calling ADF\n");
+#endif
+	rsbac_target_id.scd = ST_network;
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+				task_pid(current),
+				T_SCD,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		err = -EPERM;
+		goto errout;
+	}
+#endif
 
 	rule = kzalloc(ops->rule_size, GFP_KERNEL);
 	if (rule == NULL) {
@@ -418,6 +442,10 @@ static int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	struct fib_rule *rule, *tmp;
 	struct nlattr *tb[FRA_MAX+1];
 	int err = -EINVAL;
+#ifdef CONFIG_RSBAC_NET
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
 
 	if (nlh->nlmsg_len < nlmsg_msg_size(sizeof(*frh)))
 		goto errout;
@@ -435,6 +463,25 @@ static int fib_nl_delrule(struct sk_buff *skb, struct nlmsghdr* nlh, void *arg)
 	err = validate_rulemsg(frh, tb, ops);
 	if (err < 0)
 		goto errout;
+
+#ifdef CONFIG_RSBAC_NET
+#ifdef CONFIG_RSBAC_DEBUG
+	if (rsbac_debug_aef)
+		rsbac_printk(KERN_DEBUG "fib_nl_delrule(): calling ADF\n");
+#endif
+	rsbac_target_id.scd = ST_network;
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+				task_pid(current),
+				T_SCD,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		err = -EPERM;
+		goto errout;
+	}
+#endif
 
 	list_for_each_entry(rule, &ops->rules_list, list) {
 		if (frh->action && (frh->action != rule->action))
@@ -529,6 +576,28 @@ static int fib_nl_fill_rule(struct sk_buff *skb, struct fib_rule *rule,
 {
 	struct nlmsghdr *nlh;
 	struct fib_rule_hdr *frh;
+#ifdef CONFIG_RSBAC_NET
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
+#ifdef CONFIG_RSBAC_NET
+#ifdef CONFIG_RSBAC_DEBUG
+	if (rsbac_debug_aef)
+		rsbac_printk(KERN_DEBUG "fib_nl_fill_rule(): calling ADF\n");
+#endif
+	rsbac_target_id.scd = ST_network;
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_GET_STATUS_DATA,
+				task_pid(current),
+				T_SCD,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+	#endif
 
 	nlh = nlmsg_put(skb, pid, seq, type, sizeof(*frh), flags);
 	if (nlh == NULL)

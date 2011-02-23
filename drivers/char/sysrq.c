@@ -46,6 +46,11 @@
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/types.h>
+#include <rsbac/debug.h>
+#endif
+
 /* Whether we react on sysrq keys or just ignore them */
 static int __read_mostly sysrq_enabled = 1;
 static bool __read_mostly sysrq_always_enabled;
@@ -186,6 +191,25 @@ static struct sysrq_key_op sysrq_mountro_op = {
 	.action_msg	= "Emergency Remount R/O",
 	.enable_mask	= SYSRQ_ENABLE_REMOUNT,
 };
+
+#ifdef CONFIG_RSBAC_SOFTMODE_SYSRQ
+static void sysrq_handle_rsbac_softmode(int key,
+		                        struct tty_struct *tty) {
+	if (rsbac_softmode) {
+		rsbac_printk(KERN_WARNING "Soft mode disabled via SysRq!\n");
+		rsbac_softmode = 0;
+	}
+	else {
+		rsbac_printk(KERN_WARNING "Soft mode enabled via SysRq!\n");
+		rsbac_softmode = 1;
+	}
+}
+static struct sysrq_key_op sysrq_rsbac_softmode_op = {
+	handler:	sysrq_handle_rsbac_softmode,
+	help_msg:	"rsbac_toggle_softmode_X",
+	action_msg:	"RSBAC toggle softmode\n",
+};
+#endif
 
 #ifdef CONFIG_LOCKDEP
 static void sysrq_handle_showlocks(int key, struct tty_struct *tty)
@@ -450,7 +474,11 @@ static struct sysrq_key_op *sysrq_key_table[36] = {
 	NULL,				/* v */
 	&sysrq_showstate_blocked_op,	/* w */
 	/* x: May be registered on ppc/powerpc for xmon */
+#ifdef CONFIG_RSBAC_SOFTMODE_SYSRQ
+	&sysrq_rsbac_softmode_op,	/* x */
+#else
 	NULL,				/* x */
+#endif
 	/* y: May be registered on sparc64 for global register dump */
 	NULL,				/* y */
 	&sysrq_ftrace_dump_op,		/* z */

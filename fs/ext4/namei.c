@@ -40,6 +40,8 @@
 #include "xattr.h"
 #include "acl.h"
 
+#include <rsbac/hooks.h>
+
 /*
  * define how far ahead to read directories while searching them.
  */
@@ -2220,6 +2222,19 @@ static int ext4_unlink(struct inode *dir, struct dentry *dentry)
 
 	inode = dentry->d_inode;
 
+#ifdef CONFIG_RSBAC_SECDEL
+        if(inode->i_nlink == 1) {
+                ext4_journal_stop(handle);
+                rsbac_sec_del(dentry, TRUE);
+                handle = ext4_journal_start(dir, EXT4_DELETE_TRANS_BLOCKS(dir->i_sb));
+                if (IS_ERR(handle))
+                        return PTR_ERR(handle);
+
+                if (IS_DIRSYNC(dir))
+                        handle->h_sync = 1;
+        }
+#endif
+
 	retval = -EIO;
 	if (le32_to_cpu(de->inode) != inode->i_ino)
 		goto end_unlink;
@@ -2409,6 +2424,7 @@ static int ext4_rename(struct inode *old_dir, struct dentry *old_dentry,
 			brelse(new_bh);
 			new_bh = NULL;
 		}
+
 	}
 	if (S_ISDIR(old_inode->i_mode)) {
 		if (new_inode) {
@@ -2433,6 +2449,21 @@ static int ext4_rename(struct inode *old_dir, struct dentry *old_dentry,
 		if (retval)
 			goto end_rename;
 	} else {
+
+#ifdef CONFIG_RSBAC_SECDEL
+		if(new_inode->i_nlink == 1) {
+			ext4_journal_stop(handle);
+			rsbac_sec_del(new_dentry, TRUE);
+			handle = ext4_journal_start(old_dir,
+					EXT4_DELETE_TRANS_BLOCKS(old_dir->i_sb));
+			if (IS_ERR(handle))
+				return PTR_ERR(handle);
+
+			if (IS_DIRSYNC(old_dir) || IS_DIRSYNC(new_dir))
+				handle->h_sync = 1;
+		}
+#endif
+
 		BUFFER_TRACE(new_bh, "get write access");
 		ext4_journal_get_write_access(handle, new_bh);
 		new_de->inode = cpu_to_le32(old_inode->i_ino);

@@ -7,11 +7,34 @@
 #include <linux/security.h>
 #include <linux/uaccess.h>
 
+#include <rsbac/hooks.h>
+
 int vfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 {
 	int retval = -ENODEV;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	if (dentry) {
+#ifdef CONFIG_RSBAC
+		rsbac_pr_debug(aef, "calling ADF\n");
+		rsbac_target_id.dev.type = D_block;
+		rsbac_target_id.dev.major = RSBAC_MAJOR(dentry->d_sb->s_dev);
+		rsbac_target_id.dev.minor = RSBAC_MINOR(dentry->d_sb->s_dev);
+		rsbac_attribute_value.dummy = 0;
+		if (!rsbac_adf_request(R_GET_STATUS_DATA,
+					task_pid(current),
+					T_DEV,
+					rsbac_target_id,
+					A_none,
+					rsbac_attribute_value)) {
+			return -EPERM;
+		}
+#endif
+
 		retval = -ENOSYS;
 		if (dentry->d_sb->s_op->statfs) {
 			memset(buf, 0, sizeof(*buf));

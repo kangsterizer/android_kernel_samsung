@@ -85,6 +85,7 @@
 #include <asm/pgtable.h>
 #include <asm/processor.h>
 #include "internal.h"
+#include <rsbac/hooks.h>
 
 static inline void task_name(struct seq_file *m, struct task_struct *p)
 {
@@ -342,6 +343,28 @@ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 {
 	struct mm_struct *mm = get_task_mm(task);
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
+#ifdef CONFIG_RSBAC
+	rsbac_pr_debug(aef, "calling ADF\n");
+	rsbac_target_id.process = task_pid(task);
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_GET_STATUS_DATA,
+				task_pid(current),
+				T_PROCESS,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		if (mm)
+			mmput(mm);
+		return -EPERM;
+	}
+#endif
+
 	task_name(m, task);
 	task_state(m, ns, pid, task);
 
@@ -371,7 +394,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	pid_t ppid = 0, pgid = -1, sid = -1;
 	int num_threads = 0;
 	int permitted;
-	struct mm_struct *mm;
+	struct mm_struct *mm = get_task_mm(task);
 	unsigned long long start_time;
 	unsigned long cmin_flt = 0, cmaj_flt = 0;
 	unsigned long  min_flt = 0,  maj_flt = 0;
@@ -381,10 +404,30 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	char tcomm[sizeof(task->comm)];
 	unsigned long flags;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
+#ifdef CONFIG_RSBAC
+	rsbac_pr_debug(aef, "calling ADF\n");
+	rsbac_target_id.process = task_pid(task);
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_GET_STATUS_DATA,
+				task_pid(current),
+				T_PROCESS,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))	{
+		if (mm)
+			mmput(mm);
+		return -EPERM;
+	}
+#endif
+
 	state = *get_task_state(task);
 	vsize = eip = esp = 0;
 	permitted = ptrace_may_access(task, PTRACE_MODE_READ);
-	mm = get_task_mm(task);
 	if (mm) {
 		vsize = task_vsize(mm);
 		if (permitted) {
@@ -536,8 +579,29 @@ int proc_pid_statm(struct seq_file *m, struct pid_namespace *ns,
 			struct pid *pid, struct task_struct *task)
 {
 	int size = 0, resident = 0, shared = 0, text = 0, lib = 0, data = 0;
-	struct mm_struct *mm = get_task_mm(task);
+	struct mm_struct *mm;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
+#ifdef CONFIG_RSBAC
+	rsbac_pr_debug(aef, "calling ADF\n");
+	rsbac_target_id.process = task_pid(task);
+	rsbac_attribute_value.dummy = 0;
+	if (!rsbac_adf_request(R_GET_STATUS_DATA,
+				task_pid(current),
+				T_PROCESS,
+				rsbac_target_id,
+				A_none,
+				rsbac_attribute_value))
+	{
+		return -EPERM;
+	}
+#endif
+
+	mm = get_task_mm(task);
 	if (mm) {
 		size = task_statm(mm, &shared, &text, &data, &resident);
 		mmput(mm);

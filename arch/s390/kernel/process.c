@@ -43,6 +43,10 @@
 #include <asm/nmi.h>
 #include "entry.h"
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 asmlinkage void ret_from_fork(void) asm ("ret_from_fork");
 
 /*
@@ -139,8 +143,12 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	regs.orig_gpr2 = -1;
 
 	/* Ok, create the new process.. */
+#ifdef CONFIG_RSBAC
+	return do_fork(flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD, 0, &regs, 0, NULL, NULL);
+#else
 	return do_fork(flags | CLONE_VM | CLONE_UNTRACED,
 		       0, &regs, 0, NULL, NULL);
+#endif
 }
 EXPORT_SYMBOL(kernel_thread);
 

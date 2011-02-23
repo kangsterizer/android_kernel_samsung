@@ -19,6 +19,10 @@
 #include <linux/mount.h>
 #include <linux/pid_namespace.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 #include "internal.h"
 
 static int proc_test_super(struct super_block *sb, void *data)
@@ -114,6 +118,10 @@ void __init proc_root_init(void)
 		unregister_filesystem(&proc_fs_type);
 		return;
 	}
+#ifdef CONFIG_RSBAC
+	else
+		rsbac_mount(proc_mnt);
+#endif
 
 	proc_symlink("mounts", NULL, "self/mounts");
 

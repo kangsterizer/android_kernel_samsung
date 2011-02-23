@@ -36,6 +36,10 @@
 #include <asm/setup.h>
 #include <asm/pgtable.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 asmlinkage void ret_from_fork(void);
 
 /*
@@ -122,7 +126,11 @@ void show_regs(struct pt_regs * regs)
 int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 {
 	int retval;
+#ifdef CONFIG_RSBAC
+	long clone_arg = flags | CLONE_VM | CLONE_KTHREAD;
+#else
 	long clone_arg = flags | CLONE_VM;
+#endif
 	mm_segment_t fs;
 
 	fs = get_fs();
@@ -150,6 +158,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		: "cc", "%d0", "%d1", "%d2");
 
 	set_fs(fs);
+
 	return retval;
 }
 

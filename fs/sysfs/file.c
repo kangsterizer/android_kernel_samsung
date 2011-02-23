@@ -24,6 +24,8 @@
 
 #include "sysfs.h"
 
+#include <rsbac/hooks.h>
+
 /* used in crash dumps to help with debugging */
 static char last_sysfs_file[PATH_MAX];
 void sysfs_printk_last_file(void)
@@ -339,6 +341,11 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	int error = -EACCES;
 	char *p;
 
+#ifdef CONFIG_RSBAC
+	union rsbac_target_id_t rsbac_target_id;
+	union rsbac_attribute_value_t rsbac_attribute_value;
+#endif
+
 	p = d_path(&file->f_path, last_sysfs_file, sizeof(last_sysfs_file));
 	if (!IS_ERR(p))
 		memmove(last_sysfs_file, p, strlen(p) + 1);
@@ -363,6 +370,21 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	if (file->f_mode & FMODE_WRITE) {
 		if (!(inode->i_mode & S_IWUGO) || !ops->store)
 			goto err_out;
+#ifdef CONFIG_RSBAC
+		rsbac_pr_debug(aef, "[sysfs_open_file()]: calling ADF\n");
+		rsbac_target_id.scd = ST_sysfs;
+		rsbac_attribute_value.dummy = 0;
+		if (!rsbac_adf_request(R_MODIFY_SYSTEM_DATA,
+					task_pid(current),
+					T_SCD,
+					rsbac_target_id,
+					A_owner,
+					rsbac_attribute_value))
+		{
+			error = -EPERM;
+			goto err_out;
+		}
+#endif
 	}
 
 	/* File needs read support.
@@ -372,6 +394,22 @@ static int sysfs_open_file(struct inode *inode, struct file *file)
 	if (file->f_mode & FMODE_READ) {
 		if (!(inode->i_mode & S_IRUGO) || !ops->show)
 			goto err_out;
+
+#ifdef CONFIG_RSBAC
+		rsbac_pr_debug(aef, "[sysfs_open_file()]: calling ADF\n");
+		rsbac_target_id.scd = ST_sysfs;
+		rsbac_attribute_value.dummy = 0;
+		if (!rsbac_adf_request(R_GET_STATUS_DATA,
+					task_pid(current),
+					T_SCD,
+					rsbac_target_id,
+					A_owner,
+					rsbac_attribute_value))
+		{
+			error = -EPERM;
+			goto err_out;
+		}
+#endif
 	}
 
 	/* No error? Great, allocate a buffer for the file, and store it

@@ -26,6 +26,10 @@
 #include <asm/system.h>
 #include <asm/fpu.h>
 #include <asm/syscalls.h>
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 
 void show_regs(struct pt_regs * regs)
 {
@@ -91,10 +95,16 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 #endif
 
 	/* Ok, create the new process.. */
+#ifdef CONFIG_RSBAC
+	pid = do_fork(flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD,
+			0, &regs, 0, NULL, NULL);
+#else
 	pid = do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0,
 		      &regs, 0, NULL, NULL);
+#endif
 
 	return pid;
+#endif
 }
 EXPORT_SYMBOL(kernel_thread);
 

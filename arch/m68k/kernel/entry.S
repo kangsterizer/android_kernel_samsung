@@ -766,3 +766,10 @@ sys_call_table:
 	.long sys_atomic_cmpxchg_32	/* 335 */
 	.long sys_atomic_barrier
 
+#ifdef CONFIG_RSBAC
+	/* we use 300, until sys_security gets defined here */
+	.rept 299-281
+		.long sys_ni_syscall
+	.endr
+	.long sys_rsbac
+#endif

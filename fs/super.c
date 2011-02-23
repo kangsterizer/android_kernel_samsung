@@ -32,6 +32,7 @@
 #include <linux/backing-dev.h>
 #include "internal.h"
 
+#include <rsbac/hooks.h>
 
 LIST_HEAD(super_blocks);
 DEFINE_SPINLOCK(sb_lock);
@@ -934,6 +935,11 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	mnt->mnt_parent = mnt;
 	up_write(&mnt->mnt_sb->s_umount);
 	free_secdata(secdata);
+
+#ifdef CONFIG_RSBAC
+	rsbac_mount(mnt);
+#endif
+
 	return mnt;
 out_sb:
 	dput(mnt->mnt_root);

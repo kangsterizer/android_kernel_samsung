@@ -39,6 +39,10 @@
 #include <asm/prom.h>
 #include <asm/unistd.h>
 
+#ifdef CONFIG_RSBAC
+#include <rsbac/aci.h>
+#endif
+
 /* 
  * Power management idle function 
  * Set in pm platform drivers (apc.c and pmc.c)
@@ -669,9 +673,14 @@ pid_t kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 			     /* Notreached by child. */
 			     "1: mov %%o0, %0\n\t" :
 			     "=r" (retval) :
+#ifdef CONFIG_RSBAC
+			     "i" (__NR_clone), "r" (flags | CLONE_VM | CLONE_UNTRACED | CLONE_KTHREAD),
+#else
 			     "i" (__NR_clone), "r" (flags | CLONE_VM | CLONE_UNTRACED),
+#endif
 			     "i" (__NR_exit),  "r" (fn), "r" (arg) :
 			     "g1", "g2", "g3", "o0", "o1", "memory", "cc");
+
 	return retval;
 }
 EXPORT_SYMBOL(kernel_thread);
