@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 TYPE=$1
 REL=$2
