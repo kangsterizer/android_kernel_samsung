@@ -71,9 +71,9 @@ extern int exp_UV_mV[10]; //Needed for uv
 unsigned int freq_uv_table[10][3] = {
 	//freq, stock, current
 	{1500000,	1500,	1500},
-	{1400000,	1400,	1400},
+	{1400000,	1450,	1450},
 	{1300000,	1350,	1350},
-	{1200000,	1300,	1300},
+	{1200000,	1350,	1350},
 	{1000000,	1200,	1200},
 	{800000,	1150,	1150},
 	{600000,	1150,	1150},
@@ -97,22 +97,22 @@ static struct s5pv210_dvs_conf dvs_conf[] = {
 	//1500
 	[L0] = {
 		.arm_volt   = 1500000,
-		.int_volt   = 1250000,
+		.int_volt   = 1175000,
 	},
 	//1400
 	[L1] = {
-		.arm_volt   = 1400000,
-		.int_volt   = 1250000,
+		.arm_volt   = 1450000,
+		.int_volt   = 1175000,
 	},
 	//1300
 	[L2] = {
 		.arm_volt   = 1350000,
-		.int_volt   = 1150000,
+		.int_volt   = 1200000,
 	},
 	//1200
 	[L3] = {
-		.arm_volt   = 1300000,
-		.int_volt   = 1150000,
+		.arm_volt   = 1350000,
+		.int_volt   = 1200000,
 	},
 	//1000
 	[L4] = {
@@ -514,38 +514,66 @@ static int s5pv210_cpufreq_target(struct cpufreq_policy *policy,
 	if (s3c_freqs.freqs.new == s3c_freqs.freqs.old && !first_run)
 		goto out;
 
-#define SMOOTH_STEP_UP 1 /* So what ;-) */
-#ifdef SMOOTH_STEP_UP
+#define SMOOTH_STEPS 1 /* So what ;-) */
+#ifdef SMOOTH_STEPS
 	if (cpufreq_frequency_table_target(policy, freq_table,
 			s3c_freqs.freqs.old, relation, &old_index)) {
 		ret = -EINVAL;
 		goto out;
 	}
-	/*    SGS2  SGS1 
-	 * L0 1200  1300
-	 * L1 1000  1200
-	 * L2  800  1000
-	 * L3  500   800
+	/* To debug step jumps that would freeze
+	 * Need to have cat /proc/kmsg running ofc, as phone will freeze
 	 */
-	/* No direct jump to 1.3Ghz */
+	printk(KERN_INFO "cpufreq: cur_freq idx %u requested_new idx %u\n",
+			old_index, index);
+	/*    SGS2  SGS1 
+	 * L0 1200  1500
+	 * L1 1000  1400
+	 * L2  800  1300
+	 * L3  500  1200
+	 * L4  xxx  1000
+	 */
+	/* No direct jump to 1.5Ghz */
 	if (index == L0) {
 		if (old_index > L1)
 			index = L1;
 		if (old_index > L2)
 			index = L2;
-	}
-	/* No direct jump to 1.2Ghz */
+	} else
+	/* No direct jump to 1.4Ghz */
 	if (index == L1) {
 		if (old_index > L2)
 			index = L2;
 		if (old_index > L3)
 			index = L3;
-	}
-	/* No direct jump to 1Ghz, but don't be so harsh this time */
+	} else
+	/* No direct jump to 1.3Ghz */
 	if (index == L2) {
-		if (old_index > L2)
+		if (old_index > L3)
+			index = L3;
+		if (old_index > L4)
+			index = L4;
+	} else
+	/* No direct jump to 1.2Ghz */
+	if (index == L3) {
+		if (old_index > L4)
+			index = L4;
+		if (old_index > L5)
+			index = L5;
+	} else
+	/* No direct jump to low freq (under 1Ghz) and go _real_ smooth
+	 * this time [STEP_DN] */
+	if (index < L4) {
+		if (old_index == L0)
+			index = L1;
+		else if (old_index == L1)
 			index = L2;
+		else if (old_index == L2)
+			index = L3;
+		else if (old_index == L3)
+			index = L4;
 	}
+	printk(KERN_INFO "cpufreq: elected freq idx %u\n", index);
 #endif
 
 	//Subtract the voltage in the undervolt table before supplying it to the cpu
